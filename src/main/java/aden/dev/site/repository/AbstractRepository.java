@@ -5,23 +5,23 @@ import java.util.List;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
-import aden.dev.site.entity.Classroom;
+import aden.dev.site.entity.IEntity;
 import aden.dev.site.exception.DatabaseOperationException;
 import aden.dev.site.exception.NotFoundException;
 import aden.dev.site.util.HibernateUtils;
 
-public class ClassroomRepository {
-    public String create(String classrooomName) {
-        Classroom classroom = new Classroom(classrooomName);
+public abstract class AbstractRepository {
+
+    public String create(IEntity entity) {
         Transaction transaction = null;
         try (Session session = HibernateUtils.getSessionFactory().openSession()) {
             transaction = session.beginTransaction();
 
-            session.persist(classroom);
+            session.persist(entity);
             session.flush();
             transaction.commit();
 
-            return classroom.getId();
+            return (String) entity.getId();
 
         } catch (Exception e) {
             if (transaction != null) {
@@ -31,50 +31,45 @@ public class ClassroomRepository {
         }
     }
 
-    public Classroom getById(String id) throws NotFoundException {
+    public IEntity getById(Class<?> clazz, String id) throws NotFoundException {
         Session session = HibernateUtils.getSessionFactory().openSession();
         Transaction transaction = session.beginTransaction();
 
-        Classroom classroom = session.get(Classroom.class, id);
+        IEntity classroom = (IEntity) session.get(clazz, id);
         session.flush();
         transaction.commit();
         return classroom;
     }
 
-    public List<Classroom> getAll() {
+    public List<?> getWithConditions(String rawQuery, Class<?> clazz, int page, int size)
+            throws DatabaseOperationException {
         Session session = HibernateUtils.getSessionFactory().openSession();
-        Transaction transaction = session.beginTransaction();
-        List<Classroom> classroom = session.createQuery("from Classroom", Classroom.class)
-                .getResultList();
+        session.beginTransaction();
 
-        transaction.commit();
-        return classroom;
-    }
-
-    public List<Classroom> getWithConditions(String condition, int page, int size) throws DatabaseOperationException {
-        Session session = HibernateUtils.getSessionFactory().openSession();
-
-        List<Classroom> classrooms = session.createQuery("from Classroom where " + condition, Classroom.class)
+        @SuppressWarnings("unchecked")
+        List<?> list = (List<IEntity>) session.createQuery(rawQuery, clazz)
                 .setFirstResult((page - 1) * size)
                 .setMaxResults(size)
                 .getResultList();
 
+        session.getTransaction().commit();
         session.close();
-        return classrooms;
+        return list;
     }
 
-    public void delete(String id) {
+    public <T> void delete(Class<?> clazz, String id) throws NotFoundException, DatabaseOperationException {
         Session session = HibernateUtils.getSessionFactory().openSession();
         session.beginTransaction();
 
-        Classroom classroom = session.get(Classroom.class, id);
+        @SuppressWarnings("unchecked")
+        T entity = (T) session.get(clazz, id);
 
-        if (classroom != null) {
-            session.remove(classroom);
+        if (entity != null) {
+            session.remove(entity);
+            session.getTransaction().commit();
         }
 
         // close
-        session.getTransaction().commit();
         session.close();
     }
 }
